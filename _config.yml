@@ -28,9 +28,17 @@ url: "https://pwnfirstsear.ch" # the base hostname & protocol for your site, e.g
 # github_username:  pwnfirstsearch
 
 # Build settings
-theme: minima
+#theme: minima
 plugins:
   - jekyll-feed
+
+mode: dark
+
+# Markdown settings
+markdown: kramdown
+highlighter: rouge
+kramdown:
+  syntax_highlighter: rouge
 
 # Exclude from processing.
 # The following items will not be processed, by default.
