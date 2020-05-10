@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "SpamAndHex TAS"
+title:  "SpamAndHex2020 TAS"
 date:   2020-05-10 
 author: fatalbit, cashmen, cokesme
 tags: [tas, orbs, pwn]
