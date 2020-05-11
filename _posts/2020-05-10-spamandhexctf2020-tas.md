@@ -6,7 +6,9 @@ author: fatalbit, cashmen, cokesme
 tags: [tas, orbs, reversing]
 ---
 
-![TAS vid](/assets/img/fatalbit/sah-tas.gif)
+<figure style="text-align: center">
+  <img src="/assets/img/fatalbit/sah-tas.gif">
+</figure>
 
 ```
 Your time: 1249 frames
