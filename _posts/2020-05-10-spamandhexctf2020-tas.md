@@ -3,7 +3,7 @@ layout: post
 title:  "SpamAndFlags2020 TAS"
 date:   2020-05-10 
 author: fatalbit, cashmen, cokesme
-tags: [tas, orbs, pwn]
+tags: [tas, orbs, reversing]
 ---
 
 ![TAS vid](/assets/img/fatalbit/sah-tas.gif)
