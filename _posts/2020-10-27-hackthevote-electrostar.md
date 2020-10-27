@@ -18,14 +18,15 @@ Thankfully, the challenge author [itszn](https://twitter.com/itszn13) also provi
 #!/bin/bash
 
 chmod -r flag3.exe
-/usr/bin/socat -d -d TCP-LISTEN:9000,reuseaddr,fork EXEC:"timeout -sKILL 300 env ./machine modules/init_module.img.sig",pty,stderr,setsid,sigint,sighup,echo=0,sane,raw,ignbrk=1
+/usr/bin/socat -d -d TCP-LISTEN:9000,reuseaddr,fork EXEC:"timeout -sKILL 300 env 
+    ./machine modules/init_module.img.sig",pty,stderr,setsid,sigint,sighup,echo=0,sane,raw,ignbrk=1
 ```
 
 ## Part 1
 
 We start things off by pulling apart the main `machine` binary in IDA. Since it comes with symbols and the challenge description is helpful, we already have a general idea that the modules are loaded and interact via some sort of IPC. But what do modules look like?
 
-```c=
+```c
 struct {
     uint8_t signature_length;
     uint8_t signature[/* same length as above */];
@@ -38,7 +39,7 @@ The `flags` field contains only a few relevant fields, such as whether a module 
 
 Modules are mapped into memory at the fixed address 0x500000 into an RWX region.
 
-```c=
+```c
 void *__fastcall map_image(const void *a1, size_t a2)
 {
   void *addr; // [rsp+28h] [rbp-8h]
@@ -53,7 +54,7 @@ void *__fastcall map_image(const void *a1, size_t a2)
 
 Once a module is loaded, the main sandbox provides a simple IPC handler command using pipe fds. Each process simply writes a command to its IPC pipe, where each command is a 2-byte length, a 4-byte command ID, and then message data. Modules also have the ability to send each other messages by having one module register to receive messages and another one send it, proxied through the machine itself.
 
-```c=
+```c
 signed __int64 __fastcall read_ipc(struct module_t *a1)
 {
   ssize_t v2; // rax
@@ -103,7 +104,7 @@ The logic behind this application is in the `ballot_module.img.sig` module, whic
 
 The `gui_module` is more immediately interesting, because it is responsible for rendering this ncurses menu. The main body of code inside it is as follows.
 
-```c=
+```c
 __int64 __fastcall sub_84E(__int64 a1)
 {
   void *v1; // rax
@@ -199,7 +200,7 @@ The bug here is that you can toggle menu options, so toggling an option on and o
 
 Luckily for us, the fallback in this application is an interface that lets us send raw IPC messages into the `ballot_module` pipe - how convenient!
 
-```c=
+```c
 __int64 __fastcall process_ipc_data(char *data)
 {
   void *v1; // rsp
@@ -297,7 +298,7 @@ We do have to send each part 1 byte at a time though, so I wrote a quick stager 
 
 From here, we can examine the code required to make an IPC call to retrieve the second flag:
 
-```c=
+```c
 if ( opcode == 1337 ) /* first flag */
 {
   stream = fopen("flag1.txt", "r");
@@ -325,7 +326,7 @@ Reading the second flag requires our module to have `a1->flags & 1`, which we do
 
 So - when modules are loaded, they're just forked off of the machine process which contains the private key (at least, the version on the server does). So how does the binary prevent us from just reading it out of our own process?
 
-```c=
+```c
 __int64 init_ec()
 {
   __int64 result; // rax
@@ -360,7 +361,7 @@ __int64 init_ec()
 
 There is some further "memory cleaning code" that is worth examining.
 
-```c=
+```c
 unsigned __int64 __fastcall clean(struct module_t *a1)
 {
   unsigned int v1; // eax
@@ -422,7 +423,7 @@ unsigned __int64 __fastcall clean(struct module_t *a1)
 
 This function runs post-fork but before the module obtains execution. At [ A ], we close any pipes which correspond to communication channels with other modules. At [ B ], the machine scans for its own stack mapping in memory by reading `/proc/self/maps`. After ending the function, it will memset everything on the stack below this functions execution to 0, ostensibly to prevent leaking data onto the stack from spilled registers. Finally, in [ C ] it loads the following seccomp profile (for which source was provided):
 
-```c=
+```c
 void enable_sandbox() {
     // Init the filter
     scmp_filter_ctx ctx;
@@ -676,7 +677,7 @@ I didn't actually solve part 3, but I found 3 interesting bugs which I assume ar
 
 1. The IPC handler for opcode 50 contains an obvious signed underflow bug. Not only is this method clearly intended to be abused, it's also convenient. The primitive allows us to write a fully controlled qword at any negative offset below the `record_array`, which is located in bss. Interesting targets there include `stdin/stdout/stderr FILE *` pointers, which we can leverage for FSOP on this version of libc.`
 
-```c=
+```c
 if ( opcode == 50 )
 {
   if ( !(a1->flags & 4) )
@@ -698,7 +699,7 @@ if ( opcode == 50 )
 
 2. In opcode 2's handler, there are some lifetime issues around the module header chunk
 
-```c=
+```c
 else if ( opcode == 2 )
 {
   if ( waiting_for_input )
@@ -714,7 +715,7 @@ else if ( opcode == 2 )
 }
 ```
 
-```c=
+```c
 void __fastcall check_gui_output(void *a1, size_t a2)
 {
   size_t datalen; // [rsp+0h] [rbp-20h]
