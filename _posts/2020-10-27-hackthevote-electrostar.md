@@ -12,7 +12,7 @@ During this past weekend PFS participated in [Hack the Vote 2020](https://hackth
 
 Electrostar consisted of a main userspace host binary and a series of small module files. You receive the challenge with the userspace and 3 module files. There are also 3 placeholder flags - two text files and one executable. The first two parts involve reading the two flag files, while the final part requires a full breakout and code execution in the context of the main machine binary. The entire challenge as-given is meant to run on Ubuntu 18.04 and a libc is also provided.
 
-Thankfully, the challenge author [itszn](https://twitter.com/itszn13) also provided a few shell scripts to organize things. One called `connect.sh` connects you directly to the remote challenge with live flags, and another called `serve.sh` hosts a local instance of the challenge with socat.
+Thankfully, the challenge author [itszn](https://twitter.com/itszn13) also provided a few shell scripts to organize things. One called `connect.sh` connects you directly to the remote challenge with live flags, and another called `serve.sh` hosts a local instance of the challenge with socat on port 9000.
 
 ```bash=
 #!/bin/bash
