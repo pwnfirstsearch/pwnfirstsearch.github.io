@@ -558,7 +558,7 @@ MoqoZXO1iBFOGg==
 
 Once we've leaked the key, we can patch it into our own local binary where it should go. The local binary provides a convenient command line option to sign payloads as desired. All that is left is to transmit our payload to the server. `socat` is unhappy with certain bytes (e.g. 0x03) which the challenge authors use as an EOF byte. The IPC mechanism itself for reading in data breaks on newlines. Therefore, I actually used a stager payload to receive my module file and un-encode those special bytes from it.
 
-```asm
+```c
 ; this value is patched to the number of encoded bytes
 mov rdi, 0x5555555555555555
 call read_bytes
@@ -626,7 +626,7 @@ call ipc
 
 After this jerry-rigging, we obtain the flag for part 2!
 
-```flag{https://www.youtube.com/watch?v=bg6-LVCHmGM&t=3929}```
+```flag: flag{https://www.youtube.com/watch?v=bg6-LVCHmGM&t=3929}```
 
 ## Part 3
 
