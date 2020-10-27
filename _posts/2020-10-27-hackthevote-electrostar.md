@@ -201,7 +201,7 @@ While this seems like a lot, I've highlighted a few interesting portions. At [ A
 
 The bug here is that you can toggle menu options, so toggling an option on and off results in an `item_value` of 0, but with a zero `needs_to_vote` flag. This causes a SIGFPE when calculating `SHIDWORD(v10) /= v18`, which in turn causes the `gui_module` to crash.
 
-Luckily for us, the fallback in this application is an interface that lets us send raw IPC messages into the `ballot_module` pipe - how convenient!
+Luckily for us, the fallback in this application is an interface that lets us send raw IPC messages into the `ballot_module` pipe. This is made obvious by the program itself, which prints out the string `WARN: No GUI process, falling back to STDIN` and switches its call for data to `fgets(s, input_read_len, stdin)` - how convenient!
 
 ```c
 __int64 __fastcall process_ipc_data(char *data)
@@ -240,7 +240,7 @@ __int64 __fastcall process_ipc_data(char *data)
 }
 ```
 
-Inside `ballot_module`'s `process_ipc_data` function, it performs a stack `alloca()` call based on the first byte of input, which it treats as a signed value. Since it's signed, this is another bug; we can blow out the expectation of where the stack data will be allocated by passing a value greater than 0x7f. Afterwards, our raw payload will be copied to the stack, giving us control of pc (modules have no stack canaries). Obtaining the flag is straightforward from here, since the module provides a `print_part1_flag` function we can jump to, but which is never otherwise called.
+Inside `ballot_module`'s `process_ipc_data` function, it performs a stack `alloca()` call based on the first byte of input at [ A ], which it treats as a signed value. Since it's signed, this is another bug; we can blow out the expectation of where the stack data will be allocated by passing a value greater than 0x7f. Afterwards, our raw payload will be copied to the stack at [ B ], giving us control of pc (modules have no stack canaries). Obtaining the flag is straightforward from here, since the module provides a `print_part1_flag` function we can jump to, but which is never otherwise called.
 
 ```python
 from pwn import *
@@ -487,7 +487,7 @@ Intuitively I expected one of the following behaviors to happen:
 
 However, what actually happens is that the system reloads that page of the file from disk, _as it was on disk_! So all we have to do is to invoke `madvise(data_page_with_private_key, 0x1000, MADV_DONTNEED)` and we can read out the private key from our own memory. Very cool trick :)
 
-```asm=
+```c
 nop
 
 ; our thrower patches this value with the `private_pem_p` we are given,
