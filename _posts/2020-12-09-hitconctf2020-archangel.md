@@ -53,7 +53,7 @@ For type 3, the size of the string is stored in the first 8 bytes, followed by a
 
 The program's `.data` section contains two 16 element arrays (max number of storages). When the program asks for an index of a storage to set, get or destroy these arrays are used:
  1. Metadata about each storage. Used to prevent UAF and double free type bugs:
-    ```
+    ```c
      struct Storage {
         int64_t type;
         int64_t is_allocated;
@@ -279,7 +279,7 @@ As described in the plan, we can use a LSB overwrite of our type 3 string pointe
 Since we have the address of kernel32, a simple CreateFile() + ReadFile() ROP chain can be used to store the flag in a type 3 string. We can then return back to normal execution of the program and fetch the flag.
 
 ## Completed Exploit
-```
+```python
 #!/usr/bin/env python3
 
 from pwn import *
