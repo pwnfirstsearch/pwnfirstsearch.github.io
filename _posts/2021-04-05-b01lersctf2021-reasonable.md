@@ -108,9 +108,7 @@ xyz
 
 ## Solution
 
-### Information gathering
-
-#### RSA configuration
+### RSA configuration
 
 First things first. Is this textbook RSA where we just calculate
 `C = pow(M, e, N)`? Or is this real RSA where we actually add padding
@@ -162,7 +160,7 @@ print('C:', hex(C))
 
 It's a match, so we're attacking plain RSA without padding.
 
-#### Public Key
+### Public Key
 
 Sanity check. They're not using the same key between the test server
 and real server, right?
@@ -305,7 +303,7 @@ print('C:', hex(C))
 
 Public key confirmed.
 
-#### Decrypting the secret
+### Decrypting the secret
 
 RSA with no padding means that we should be able to do a
 Franklin-Reiter related message attack if we can find two related
