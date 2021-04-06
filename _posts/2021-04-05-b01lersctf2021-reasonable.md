@@ -365,10 +365,9 @@ b = b_upper + b_lower
 
 And now `M2 = a * M1 + b`.
 
-Shoutouts to ashutosh1206 for publicly releasing a Sage script for
-Franklin-Reiter in their Github library, Crypton:
-
-https://github.com/ashutosh1206/Crypton/tree/master/RSA-encryption/Attack-Franklin-Reiter
+Shoutouts to ashutosh1206 for publicly releasing a
+[Sage script](https://github.com/ashutosh1206/Crypton/tree/master/RSA-encryption/Attack-Franklin-Reiter)
+for Franklin-Reiter in their Github library, Crypton.
 
 (Note that in the original Franklin-Reiter paper and in
 ashutosh1206's implementation, C2 is the encrypted form of the
