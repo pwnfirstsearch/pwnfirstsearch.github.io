@@ -358,7 +358,7 @@ text_upper = "encryption of '"
 text_lower = "' gives:"
 
 a = 8 * len(text_lower)
-b_upper = encode_text(text_upper) * (2 ** 8 * (flaglen + len(text_lower)))
+b_upper = encode_text(text_upper) * (2 ** (8 * (flaglen + len(text_lower))))
 b_lower = encode_text(text_lower)
 b = b_upper + b_lower
 ```
