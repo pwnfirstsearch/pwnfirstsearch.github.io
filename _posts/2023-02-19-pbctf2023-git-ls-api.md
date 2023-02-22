@@ -10,7 +10,7 @@ We are given the source to a simple service which displays the SHA hash and file
 
 the `index` endpoint invokes `octokit` to retrieve the SHA and tree of the target repo. While searching the net to understand how `Octokit` works, I found a [gitlab bug](https://gitlab.com/gitlab-org/gitlab/-/issues/371098) where the importer could be hijacked via improper passing of a `SawyerResource` object to a caching function. The bug in this challenge wound up being almost identical, but using the built in rails redis cacher rather than being in gitlab's methods. 
 
-The redis command serializer assumes that it will receive a norrmal flat bytelike or string object, and uses `to_s` to get the value and `bytesize` to compute the length.  `SawyerResource` objects are automagic structs produced directly from our input JSON, so we can set those to mismatch when constructing the RESP command string (it doesn't check that it's the builtin `bytesize` method and not just a field on the input). This lets us inject redis commands directly by using something like:
+The redis command serializer assumes that it will receive a normal flat bytelike or string object, and uses `to_s` to get the value and `bytesize` to compute the length.  `SawyerResource` objects are automagic structs produced directly from our input JSON, so we can set those to mismatch when constructing the RESP command string (it doesn't check that it's the builtin `bytesize` method and not just a field on the input). This lets us inject redis commands directly by using something like:
 
 ```python
 exploit = {"sha": {"to_s": { "to_s": { "to_s": { "b":{
