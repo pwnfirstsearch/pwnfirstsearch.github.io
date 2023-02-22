@@ -1,3 +1,11 @@
+---
+layout: post
+title:  "PBCTF2023 git-ls-api"
+date:   2023-05-10 
+author: numbers
+tags: [web, ruby]
+---
+
 We are given the source to a simple service which displays the SHA hash and file list for a github project. We can also provide an `api_endpoint` and it will retrieve from our host instead.
 
 the `index` endpoint invokes `octokit` to retrieve the SHA and tree of the target repo. While searching the net to understand how `Octokit` works, I found a [gitlab bug](https://gitlab.com/gitlab-org/gitlab/-/issues/371098) where the importer could be hijacked via improper passing of a `SawyerResource` object to a caching function. The bug in this challenge wound up being almost identical, but using the built in rails redis cacher rather than being in gitlab's methods. 
